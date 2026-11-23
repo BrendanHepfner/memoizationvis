@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memoized recursion: start at n−1 or start at 0?</title>
+<style>
+:root{
+  --bg:#fafaf7;--panel:#fff;--ink:#1c1b19;--muted:#6b6a66;--line:#e3e1da;
+  --active:#2563eb;--done:#0f766e;--hit:#d97706;--bad:#b45309;--wall:#2b2a27;--code-bg:#f3f2ec;--cell:#f4f3ec;
+  --a:#7c3aed;--b:#0f766e;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#161614;--panel:#1f1f1c;--ink:#ecebe6;--muted:#9a9890;--line:#33322d;
+  --active:#60a5fa;--done:#2dd4bf;--hit:#fbbf24;--bad:#fbbf24;--wall:#0b0b0a;--code-bg:#262621;--cell:#2a2a26;
+  --a:#a78bfa;--b:#2dd4bf;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:1200px;margin:0 auto;padding:32px 20px 64px}
+h1{font-size:2rem;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:1.05rem;margin:0 0 10px}
+code{font:.92em ui-monospace,SFMono-Regular,Menlo,monospace}
+.lead{color:var(--muted);max-width:80ch;margin:0 0 22px}
+.lead b{color:var(--ink)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.row{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.row+.row{margin-top:12px}
+.lbl-s{font-size:.82rem;color:var(--muted);margin-right:-8px}
+.grp{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.grp button{border:0;border-right:1px solid var(--line);background:transparent;color:var(--ink);padding:7px 12px;font:inherit;cursor:pointer}
+.grp button:last-child{border-right:0}
+.grp button:hover{background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.grp button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--active);border-color:var(--active);color:#fff;min-width:100px}
+label.sl{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.9rem}
+input[type=range]{accent-color:var(--active)}
+input[type=text]{font:14px ui-monospace,SFMono-Regular,Menlo,monospace;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink)}
+.scrub{flex:1;min-width:180px;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.82rem}
+.scrub input{flex:1}
+.scrub span{min-width:10ch;text-align:right;font-variant-numeric:tabular-nums}
+
+/* example picker */
+.picker{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:980px){.picker{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.picker{grid-template-columns:1fr}}
+.pg h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 6px;font-weight:600}
+.ex{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:7px 10px;margin-bottom:6px;font:inherit;font-size:.92rem;cursor:pointer}
+.ex:hover{border-color:var(--muted)}
+.ex[aria-pressed=true]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.win{font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:99px;white-space:nowrap;border:1px solid currentColor}
+.win.A{color:var(--a)}.win.B{color:var(--b)}.win.T{color:var(--muted)}
+.blurb{margin:0 0 12px;font-size:.96rem;max-width:90ch}
+.verdict{display:flex;flex-wrap:wrap;gap:6px 24px;align-items:baseline;padding:12px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel);margin-bottom:16px}
+.verdict .big{font-size:1.45rem;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.2}
+.verdict .lbl{color:var(--muted);font-size:.84rem}
+.verdict .res{margin-left:auto;font-weight:650;font-size:1.05rem}
+
+.boards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:920px){.boards{grid-template-columns:1fr}}
+.board{border-top:4px solid var(--c)}
+.board.A{--c:var(--a)}.board.B{--c:var(--b)}
+.bhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.bhead h2{margin:0;color:var(--c)}
+.dir{font-size:.85rem;color:var(--muted);margin:2px 0 10px}
+.dir b{color:var(--ink);font-weight:600;font-family:ui-monospace,Menlo,monospace;font-size:.92em}
+.badge{font-size:.78rem;padding:2px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.badge.ok{border-color:var(--c);color:var(--c);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:3px 14px;font-size:.84rem;color:var(--muted);margin-bottom:10px}
+.chips b{color:var(--ink);font-variant-numeric:tabular-nums}
+.chips .h b{color:var(--hit)}
+.chips .w b{color:var(--bad)}
+.maze{display:grid;gap:4px;width:100%;max-width:460px;margin:0 auto;user-select:none}
+.maze.line{max-width:none;gap:3px}
+.maze.click .cell:not(.wall){cursor:pointer}
+.maze.toggle .cell{cursor:pointer}
+.cell{position:relative;aspect-ratio:1;border-radius:7px;background:var(--cell);display:flex;align-items:center;justify-content:center;
+  font-variant-numeric:tabular-nums;border:2px solid transparent;min-width:0}
+.maze.line .cell{border-radius:50%}
+.cell .big{font-weight:650;font-size:clamp(.6rem,1.6vw,.98rem)}
+.maze.line .cell .big{font-size:clamp(.55rem,1.25vw,.85rem)}
+.cell .sub{position:absolute;right:3px;bottom:1px;font-size:clamp(.44rem,1vw,.62rem);color:var(--muted)}
+.maze.line .cell .sub{right:auto;left:50%;transform:translateX(-50%);bottom:-15px}
+.cell .tag{position:absolute;left:4px;top:1px;font-size:clamp(.5rem,1.2vw,.7rem);font-weight:700;color:var(--muted)}
+.maze.line .cell .tag{left:50%;transform:translateX(-50%);top:-17px;white-space:nowrap}
+.maze.line{padding:18px 0 16px}
+.letter{text-align:center;font:600 clamp(.8rem,1.8vw,1.05rem) ui-monospace,Menlo,monospace;color:var(--ink);align-self:end;padding-bottom:4px;border-bottom:2px solid var(--line);margin:0 2px}
+.cell.wall{background:var(--wall)}
+.cell.cached{background:color-mix(in srgb,var(--c) 22%,var(--cell))}
+.cell.reused{background:color-mix(in srgb,var(--c) 10%,var(--cell));border-color:color-mix(in srgb,var(--c) 50%,transparent);border-style:dotted}
+.cell.waste{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--bad) 30%,var(--cell)) 0 5px,color-mix(in srgb,var(--bad) 10%,var(--cell)) 5px 10px)}
+.cell.stack{border-color:var(--active);border-style:solid}
+.cell.stack:where(:not(.cached):not(.waste)){background:color-mix(in srgb,var(--active) 15%,var(--cell))}
+.cell.reads{border-color:var(--hit);border-style:dashed}
+.cell.stored{border-color:var(--c);border-style:solid;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+.cell.hit{background:var(--hit);border-color:var(--hit);color:#1c1b19}
+.cell.hit .sub{color:#1c1b19}
+.cell.cur{background:var(--active);border-color:var(--active);color:#fff}
+.cell.bump{background:color-mix(in srgb,var(--hit) 45%,var(--wall));border-color:var(--hit)}
+.cell.dep{outline:2px dashed var(--ink);outline-offset:1px}
+.cell.hl{outline:3px solid var(--ink);outline-offset:1px}
+.prog{height:5px;border-radius:3px;background:var(--line);margin:12px 0 10px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--c)}
+.narr{min-height:4.6em;margin:10px 0 0;font-size:.94rem}
+.meaning{font-size:.84rem;color:var(--muted);margin:6px 0 0;text-align:center}
+.meaning b{color:var(--c)}
+.qs{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 10px;font:12px ui-monospace,Menlo,monospace}
+.qs span{border:1px solid var(--line);border-radius:6px;padding:1px 7px;color:var(--muted)}
+.qs span.now{border-color:var(--c);color:var(--c);font-weight:700}
+.qs span.done{color:var(--ink)}
+.qs span.clr{border-color:var(--bad);color:var(--bad)}
+pre{margin:10px 0 0;background:var(--code-bg);border-radius:8px;padding:8px 6px;overflow:auto;font:12.6px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+.code .ln{display:block;padding:0 8px;border-radius:4px;white-space:pre}
+.code .ln::before{content:attr(data-n);display:inline-block;width:2.2ch;color:var(--muted);opacity:.6;margin-right:10px;text-align:right}
+.code .ln.on{background:color-mix(in srgb,var(--active) 22%,transparent)}
+.code .ln.on.h{background:color-mix(in srgb,var(--hit) 32%,transparent)}
+.code .ln.on.d{background:color-mix(in srgb,var(--c) 26%,transparent)}
+.code .ln.on.w{background:color-mix(in srgb,var(--muted) 26%,transparent)}
+.code .ln.on.x{background:color-mix(in srgb,var(--bad) 26%,transparent)}
+.code .diff{background:color-mix(in srgb,var(--c) 14%,transparent);border-radius:3px;outline:1px solid color-mix(in srgb,var(--c) 40%,transparent)}
+.stackl{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:8px;font:12px ui-monospace,Menlo,monospace;color:var(--muted);min-height:22px}
+.stackl span{border:1px solid var(--active);color:var(--active);border-radius:6px;padding:0 5px}
+.stackl span:last-child{background:var(--active);color:#fff}
+.hover{min-height:1.6em;margin:0 0 16px;font-size:.92rem;color:var(--muted);text-align:center}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.84rem;color:var(--muted);justify-content:center;margin:0 0 6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.notice{margin:0 0 16px;padding:8px 12px;border-radius:8px;font-size:.9rem;background:color-mix(in srgb,var(--hit) 14%,transparent);border:1px solid color-mix(in srgb,var(--hit) 45%,transparent)}
+.notice:empty{display:none}
+.note{color:var(--muted);font-size:.88rem;margin:8px 0 0}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);font-size:.92rem;vertical-align:top}
+th{color:var(--muted);font-weight:500}
+th.A{color:var(--a)}th.B{color:var(--b)}
+td.win-c{font-weight:650}
+#score tr{cursor:pointer}
+#score tr:hover td{background:color-mix(in srgb,var(--ink) 4%,transparent)}
+#score tr.cur td{background:color-mix(in srgb,var(--active) 8%,transparent)}
+.cols{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
+@media(max-width:860px){.cols{grid-template-columns:1fr}}
+.when p{margin:0 0 10px;font-size:.94rem}
+.when b.A{color:var(--a)}.when b.B{color:var(--b)}
+@media(prefers-reduced-motion:no-preference){.cell{transition:background .1s,border-color .1s}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Memoized recursion: start at n−1, or start at 0?</h1>
+  <p class="lead">Many counting problems can be written as memoized recursion in two directions. <b>Starting at n−1</b> (the end), the function asks “how many ways get <em>here</em> from the start?” and recurses back toward 0. <b>Starting at 0</b>, it asks “how many ways get from here to the end?” and recurses forward toward n−1. Both cache every answer and always agree on the result. Which one does less work depends on the problem: pick an example below and watch both run in lockstep.</p>
+
+  <div class="panel">
+    <div class="picker" id="picker"></div>
+  </div>
+
+  <div class="panel">
+    <p class="blurb" id="blurb"></p>
+    <div class="row" id="editrow"></div>
+    <div class="row">
+      <button class="btn" id="back" title="Step back (←)">◀</button>
+      <button class="btn primary" id="play" title="Play / pause (Space)">▶ Play</button>
+      <button class="btn" id="fwd" title="Step (→)">▶|</button>
+      <button class="btn" id="end" title="Skip to end">⏭</button>
+      <label class="sl">speed <input id="spd" type="range" min="1" max="12" value="5"></label>
+      <div class="scrub"><input id="scrub" type="range" min="0" max="1" value="0" aria-label="Timeline"><span id="scrubl"></span></div>
+    </div>
+  </div>
+
+  <div class="verdict" id="verdict"></div>
+  <div class="notice" id="notice"></div>
+
+  <div class="boards">
+    <section class="panel board A" id="A">
+      <div class="bhead"><h2>Start at n−1</h2><span class="badge" data-r="badge"></span></div>
+      <p class="dir">First call <b data-r="first"></b>, recursing back toward the start</p>
+      <div class="qs" data-r="qs"></div>
+      <div class="chips" data-r="chips"></div>
+      <div class="maze" data-r="maze"></div>
+      <p class="meaning">Each number = <b data-r="meaning"></b></p>
+      <div class="prog"><i data-r="prog"></i></div>
+      <p class="narr" data-r="narr" aria-live="polite"></p>
+      <pre class="code" data-r="code"></pre>
+      <div class="stackl" data-r="stack"></div>
+    </section>
+    <section class="panel board B" id="B">
+      <div class="bhead"><h2>Start at 0</h2><span class="badge" data-r="badge"></span></div>
+      <p class="dir">First call <b data-r="first"></b>, recursing forward toward the end</p>
+      <div class="qs" data-r="qs"></div>
+      <div class="chips" data-r="chips"></div>
+      <div class="maze" data-r="maze"></div>
+      <p class="meaning">Each number = <b data-r="meaning"></b></p>
+      <div class="prog"><i data-r="prog"></i></div>
+      <p class="narr" data-r="narr" aria-live="polite"></p>
+      <pre class="code" data-r="code"></pre>
+      <div class="stackl" data-r="stack"></div>
+    </section>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--active)"></i>current call</span>
+    <span><i style="border:2px solid var(--active)"></i>call stack</span>
+    <span><i style="border:2px dashed var(--hit)"></i>about to be asked</span>
+    <span><i style="background:var(--hit)"></i>cache hit</span>
+    <span><i style="background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--bad) 35%,transparent) 0 3px,transparent 3px 6px)"></i>worked out as 0: wasted on a dead end</span>
+    <span><i style="border:2px dotted var(--muted)"></i>cached by an earlier question</span>
+    <span>#k = order it was cached</span>
+  </div>
+  <p class="hover" id="hover"></p>
+
+  <div class="cols">
+    <section class="panel">
+      <h2>Head to head on this example</h2>
+      <table>
+        <thead><tr><th></th><th class="A">Start at n−1</th><th class="B">Start at 0</th></tr></thead>
+        <tbody id="cmp"></tbody>
+      </table>
+      <p class="note" id="plain"></p>
+    </section>
+    <section class="panel when">
+      <h2>So which end should you start from?</h2>
+      <p><b>What gets explored.</b> <b class="A">Starting at n−1</b> only ever visits states that can reach the end, so it wastes work on states the start can’t reach. <b class="B">Starting at 0</b> only visits states the start can reach, so it wastes work on dead ends that never get to the end. Start from the side whose neighbourhood has fewer places that go nowhere. If a problem fails fast at one end, start there.</p>
+      <p><b>What the cache can answer later.</b> Every cached number is measured from the base case. <b class="A">Starting at n−1</b> puts the base case at the start, so the cache survives a new goal. <b class="B">Starting at 0</b> puts it at the end, so the cache survives a new start. If you’ll ask many questions, put the base case at the end that stays fixed.</p>
+      <p style="margin:0"><b>When neither matters.</b> If every state can both be reached from the start and reach the end, the two directions do exactly the same work in a different order.</p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Scoreboard: calls for every example</h2>
+    <table>
+      <thead><tr><th>Example</th><th class="A">Start at n−1</th><th class="B">Start at 0</th><th>Fewer calls</th></tr></thead>
+      <tbody id="score"></tbody>
+    </table>
+    <p class="note">Click a row to open that example. A row updates if you edit its example.</p>
+  </section>
+</main>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const fmt=x=>x.toLocaleString('en-US');
+const short=x=>x>=10000?Math.round(x/1000)+'k':x>=1000?(x/1000).toFixed(1)+'k':String(x);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+// ---------------- examples ----------------
+const G6=[[1,1],[3,1],[4,4],[1,4]];
+const EX=[
+  {id:'m-open',g:'Maze',name:'Open maze',kind:'grid',n:6,walls:()=>[],
+   blurb:'Count the routes from S at the top-left to G at the bottom-right, moving only right or down. With no walls, every cell can be reached from S and can reach G, so the two recursions are mirror images and do exactly the same work.'},
+  {id:'m-dead',g:'Maze',name:'Dead-end area',kind:'grid',n:6,walls:n=>{const w=[];for(let c=1;c<n;c++)w.push([n-2,c]);return w;},
+   blurb:'A wall near the bottom leaves one gap on the far left. Everything above and to the right of it can be reached from S but can never get to G. Starting at 0 wanders all over that area working out zeros. Starting at n−1 never goes there.'},
+  {id:'m-cut',g:'Maze',name:'Cut off from S',kind:'grid',n:6,walls:n=>{const w=[];for(let c=0;c<n-1;c++)w.push([1,c]);return w;},
+   blurb:'The mirror image: a wall near the top. The area below it can reach G, but S can never get in. Now starting at n−1 is the one that wastes its time.'},
+  {id:'s-none',g:'Stepping stones',name:'No gaps',kind:'stones',n:14,missing:[],
+   blurb:'Hop from stone 0 to the last stone, 1 or 2 stones at a time. How many different hop sequences are there? With no gaps, every stone is useful in both directions. A tie.'},
+  {id:'s-end',g:'Stepping stones',name:'Gap near the end',kind:'stones',n:14,missing:[10,11],
+   blurb:'Two missing stones in a row can’t be hopped over, so there is no way across. Starting at n−1 runs into the gap within a couple of calls. Starting at 0 works out every stone before the gap before discovering it’s all for nothing.'},
+  {id:'s-start',g:'Stepping stones',name:'Gap near the start',kind:'stones',n:14,missing:[2,3],
+   blurb:'The same gap, moved to the start. Now starting at 0 finds out at once, and starting at n−1 grinds through every stone after the gap.'},
+  {id:'w-tie',g:'Word break',name:'aaaaaaaa',kind:'words',s:'aaaaaaaa',words:['a','aa','aaa'],
+   blurb:'Count the ways to split the string into dictionary words. Positions sit between letters, from 0 to n. Every prefix and every suffix can be split here, so both directions do the same work.'},
+  {id:'w-end',g:'Word break',name:'aaaaaaaaab',kind:'words',s:'aaaaaaaaab',words:['a','aa'],
+   blurb:'No dictionary word ends in “b”. Starting at the end notices on its very first call. Starting at 0 carefully splits all the a’s every possible way before it reaches the b and finds out none of it counts.'},
+  {id:'w-start',g:'Word break',name:'baaaaaaaaa',kind:'words',s:'baaaaaaaaa',words:['a','aa'],
+   blurb:'No dictionary word starts with “b”. Starting at 0 notices on its very first call. Starting at the end splits all the a’s first.'},
+  {id:'q-sameS',g:'Several questions',name:'Same start, 5 goals',kind:'grid',n:6,walls:()=>G6,
+   queries:[[[0,0],[5,5]],[[0,0],[3,4]],[[0,0],[4,2]],[[0,0],[2,5]],[[0,0],[5,3]]],
+   blurb:'Five questions in a row, all from S to a different G, with one cache kept throughout. Starting at n−1 measures everything from S, so the first question fills the cache and the rest are nearly free. Starting at 0 measures from G, so every new G forces it to throw the cache away.'},
+  {id:'q-sameG',g:'Several questions',name:'Same goal, 5 starts',kind:'grid',n:6,walls:()=>G6,
+   queries:[[[0,0],[5,5]],[[1,3],[5,5]],[[3,0],[5,5]],[[2,2],[5,5]],[[0,5],[5,5]]],
+   blurb:'Five questions, same G, different starts. Now starting at 0 keeps one cache for all five, and starting at n−1 has to throw its cache away for every new start.'}
+];
+
+// ---------------- problem ----------------
+let EXi=0, cur=null, P=null;   // cur: editable copy of the example; P: graph view of it
+function loadConfig(ex){
+  const c={kind:ex.kind,id:ex.id,edited:false};
+  if(ex.kind==='grid'){
+    c.n=ex.n;c.walls=[];for(let r=0;r<c.n;r++)c.walls.push(new Array(c.n).fill(false));
+    ex.walls(c.n).forEach(([r,cc])=>c.walls[r][cc]=true);
+    c.queries=(ex.queries||[[[0,0],[c.n-1,c.n-1]]]).map(([s,t])=>[s[0]*c.n+s[1],t[0]*c.n+t[1]]);
+  }else if(ex.kind==='stones'){
+    c.n=ex.n;c.missing=new Set(ex.missing);c.queries=[[0,c.n-1]];
+  }else{
+    c.s=ex.s;c.words=ex.words.slice();c.queries=[[0,c.s.length]];
+  }
+  return c;
+}
+function makeProblem(c){
+  if(c.kind==='grid'){
+    const n=c.n;
+    return {V:n*n,
+      blocked:v=>c.walls[Math.floor(v/n)][v%n],
+      pred:v=>{const r=Math.floor(v/n),k=v%n,o=[];if(r>0)o.push(v-n);if(k>0)o.push(v-1);return o;},
+      succ:v=>{const r=Math.floor(v/n),k=v%n,o=[];if(r<n-1)o.push(v+n);if(k<n-1)o.push(v+1);return o;},
+      label:v=>`(${Math.floor(v/n)}, ${v%n})`, fn:v=>`paths(${Math.floor(v/n)}, ${v%n})`,
+      blockedWord:'a wall'};
+  }
+  if(c.kind==='stones'){
+    const n=c.n;
+    return {V:n,blocked:i=>c.missing.has(i),
+      pred:i=>[i-1,i-2].filter(x=>x>=0),succ:i=>[i+1,i+2].filter(x=>x<n),
+      label:i=>`stone ${i}`,fn:i=>`ways(${i})`,blockedWord:'a missing stone'};
+  }
+  const s=c.s,L=s.length,W=c.words;
+  const uniq=a=>[...new Set(a)];
+  return {V:L+1,blocked:()=>false,
+    pred:j=>uniq(W.filter(w=>w.length&&j>=w.length&&s.slice(j-w.length,j)===w).map(w=>j-w.length)),
+    succ:i=>uniq(W.filter(w=>w.length&&s.startsWith(w,i)).map(w=>i+w.length)),
+    label:j=>`position ${j}`,fn:j=>`splits(${j})`,blockedWord:''};
+}
+const MEANING={
+  grid:['routes from S to this cell','routes from this cell to G'],
+  stones:['ways to hop from the start to this stone','ways to hop from this stone to the end'],
+  words:['ways to split the letters before this point','ways to split the letters after this point']
+};
+const DEAD={
+  grid:['S can’t reach this cell','this cell can’t reach G'],
+  stones:['you can’t hop here from the start','you can’t hop from here to the end'],
+  words:['the letters before this point can’t be split','the letters after this point can’t be split']
+};
+
+// ---------------- engine ----------------
+// dir 'A' (start at n-1): f(t), base = s, recurse into predecessors.  dir 'B' (start at 0): g(s), base = t, recurse into successors.
+function build(dir,Pb,qs,pre){
+  const ev=[];let cache=new Map(),base=null;
+  if(pre&&pre.cache.size){cache=new Map([...pre.cache].map(([k,o])=>[k,{v:o.v,q:-1,o:0}]));base=pre.base;}
+  const preMap=new Map(cache);
+  let calls=0,hits=0,cross=0,worked=0,dead=0,maxD=0,clears=0,order=0;const answers=[];
+  qs.forEach(([s,t],qi)=>{
+    const b=dir==='A'?s:t;
+    if(base!==null&&b!==base&&cache.size){ev.push({t:'clear',q:qi,n:cache.size});cache=new Map();clears++;}
+    base=b;
+    ev.push({t:'q',q:qi});
+    const rec=(v,d)=>{
+      calls++;if(d+1>maxD)maxD=d+1;
+      if(Pb.blocked(v)){ev.push({t:'call',k:v,res:'wall'});return 0;}
+      if(cache.has(v)){const o=cache.get(v),c=o.q!==qi;ev.push({t:'call',k:v,res:'hit',v:o.v,pre:c});hits++;if(c)cross++;return o.v;}
+      const isBase=v===b,kids=isBase?[]:(dir==='A'?Pb.pred(v):Pb.succ(v));
+      ev.push({t:'call',k:v,res:'miss',base:isBase,kids});
+      let val=isBase?1:0;const vals=[];
+      if(!isBase)for(const u of kids){const x=rec(u,d+1);vals.push(x);val+=x;}
+      cache.set(v,{v:val,q:qi,o:++order});worked++;if(val===0)dead++;
+      ev.push({t:'ret',k:v,v:val,vals,kids,base:isBase,o:order});
+      return val;
+    };
+    const ans=rec(dir==='A'?t:s,0);answers.push(ans);ev.push({t:'ans',q:qi,v:ans});
+  });
+  return {dir,ev,calls,hits,cross,worked,dead,maxD,clears,answers,after:cache,base,qs,pre:preMap};
+}
+function plainCalls(dir,Pb,qs){
+  let n=0;const cap=5e6;
+  for(const [s,t] of qs){
+    const b=dir==='A'?s:t;
+    const rec=v=>{if(++n>cap)return;if(Pb.blocked(v)||v===b)return;for(const u of (dir==='A'?Pb.pred(v):Pb.succ(v)))rec(u);};
+    rec(dir==='A'?t:s);
+  }
+  return n>cap?'over 5 million':fmt(n);
+}
+
+// ---------------- code ----------------
+const MAP_STD={wall:[2,3],hit:[2,4],missBase:[2,4,5],miss:[2,4,6],retBase:[5,7,8],ret:[6,7,8],start:[10],clear:[11]};
+const MAP_W={wall:[],hit:[2,3],missBase:[2,3,4],miss:[2,3,5,6],retBase:[4,7,8],ret:[5,6,7,8],start:[10],clear:[11]};
+const D=s=>`<span class="diff">${s}</span>`;
+function codeLines(dir){
+  const A=dir==='A',multi=cur.queries.length>1;
+  if(cur.kind==='grid'){
+    const last=multi
+      ?[`for S, G in questions: paths(${D(A?'G':'S')})`,`    # cache.clear() whenever ${A?'S':'G'} changes`]
+      :[`answer = paths(${D(A?'G':'S')})        # ${A?'G = (n-1, n-1)':'S = (0, 0)'}`];
+    return ['cache = {}',`def paths(r, c):      # routes from ${A?'S to (r, c)':'(r, c) to G'}`,'    if is_wall(r, c): return 0','    if (r, c) in cache: return cache[(r, c)]',
+      `    if (r, c) == ${D(A?'S':'G')}: result = 1`,
+      `    else: result = paths(${D(A?'r-1':'r+1')}, c) + paths(r, ${D(A?'c-1':'c+1')})`,
+      '    cache[(r, c)] = result','    return result','',...last];
+  }
+  if(cur.kind==='stones'){
+    return ['cache = {}',`def ways(i):          # ways to hop from ${A?'the start to stone i':'stone i to the end'}`,'    if missing(i): return 0','    if i in cache: return cache[i]',
+      `    if i == ${D(A?'0':'n-1')}: result = 1`,
+      `    else: result = ways(${D(A?'i-1':'i+1')}) + ways(${D(A?'i-2':'i+2')})`,
+      '    cache[i] = result','    return result','',`answer = ways(${D(A?'n-1':'0')})`];
+  }
+  return A
+    ?['cache = {}','def splits(j):        # ways to split s[:j]','    if j in cache: return cache[j]',`    if j == ${D('0')}: result = 1`,`    else: result = sum(splits(${D('j - len(w)')})`,`                       for w in words if ${D('s[:j].endswith(w)')})`,'    cache[j] = result','    return result','',`answer = splits(${D('n')})       # n = len(s)`]
+    :['cache = {}','def splits(i):        # ways to split s[i:]','    if i in cache: return cache[i]',`    if i == ${D('n')}: result = 1`,`    else: result = sum(splits(${D('i + len(w)')})`,`                       for w in words if ${D('s.startswith(w, i)')})`,'    cache[i] = result','    return result','',`answer = splits(${D('0')})`];
+}
+
+// ---------------- views ----------------
+function View(id,dir){const root=$(id);this.q=s=>root.querySelector(`[data-r="${s}"]`);this.maze=this.q('maze');this.dir=dir;this.cells=[];}
+View.prototype.grid=function(){
+  const m=this.maze;m.innerHTML='';this.cells=new Array(P.V);
+  if(cur.kind==='grid'){
+    m.className='maze';m.style.gridTemplateColumns=`repeat(${cur.n},1fr)`;m.style.gridTemplateRows='';
+    for(let k=0;k<P.V;k++)this.cells[k]=mk(m,k);
+  }else if(cur.kind==='stones'){
+    m.className='maze line';m.style.gridTemplateColumns=`repeat(${cur.n},1fr)`;m.style.gridTemplateRows='';
+    for(let k=0;k<P.V;k++)this.cells[k]=mk(m,k);
+  }else{
+    const V=P.V;m.className='maze line';m.style.gridTemplateColumns=`repeat(${2*V},1fr)`;m.style.gridTemplateRows='auto auto';
+    for(let i=0;i<V-1;i++){const l=document.createElement('div');l.className='letter';l.textContent=cur.s[i];l.style.gridRow='1';l.style.gridColumn=`${2*i+2} / span 2`;m.appendChild(l);}
+    for(let k=0;k<V;k++){const d=mk(m,k);d.style.gridRow='2';d.style.gridColumn=`${2*k+1} / span 2`;d.style.margin='0 2px';this.cells[k]=d;}
+  }
+  {const em=editMode();if(em)m.classList.add(em);}
+  function mk(m,k){const d=document.createElement('div');d.className='cell';d.innerHTML='<span class="tag"></span><span class="big"></span><span class="sub"></span>';d.dataset.k=k;m.appendChild(d);return d;}
+};
+View.prototype.reset=function(R){this.R=R;Object.assign(this,{t:0,stack:[],cache:new Map(R.pre),calls:0,hits:0,cross:0,worked:0,dead:0,depth:0,qi:-1,answers:[],clears:0,last:null});};
+View.prototype.seek=function(x){
+  const R=this.R;x=Math.min(x,R.ev.length);if(x<this.t)this.reset(R);
+  while(this.t<x){const e=R.ev[this.t++];this.last=e;
+    if(e.t==='q')this.qi=e.q;
+    else if(e.t==='clear'){this.cache=new Map();this.clears++;}
+    else if(e.t==='call'){this.calls++;const d=this.stack.length+1;if(d>this.depth)this.depth=d;
+      if(e.res==='hit'){this.hits++;if(e.pre)this.cross++;}else if(e.res==='miss')this.stack.push(e.k);}
+    else if(e.t==='ret'){this.stack.pop();this.cache.set(e.k,{v:e.v,q:this.qi,o:e.o});this.worked++;if(e.v===0)this.dead++;}
+    else if(e.t==='ans')this.answers.push(e.v);
+  }
+};
+const vA=new View('A','A'),vB=new View('B','B');
+let RA=null,RB=null,t=0,total=0,playing=false,raf=0,last=0,acc=0,hoverKey=-1;
+
+function curQ(v){const q=cur.queries[Math.max(0,v.qi)];return q;}
+function render(v){
+  const R=v.R,done=v.t>=R.ev.length,le=v.last,A=v.dir==='A';
+  const [s,tg]=curQ(v);
+  const stackSet=new Set(v.stack),top=v.stack.length&&!done?v.stack[v.stack.length-1]:-1;
+  const asks=!done&&le&&le.t==='call'&&le.res==='miss'&&!le.base?new Set(le.kids):null;
+  const deps=hoverKey>=0&&!P.blocked(hoverKey)?new Set(A?P.pred(hoverKey):P.succ(hoverKey)):null;
+  for(let k=0;k<P.V;k++){
+    let cls='cell',tag='',big='',sub='';
+    if(cur.kind!=='grid')tag=String(k);
+    if(k===s)tag+=(tag?' ':'')+'S';if(k===tg)tag+=(tag?' ':'')+'G';
+    if(P.blocked(k)){cls+=' wall';if(!done&&le&&le.res==='wall'&&le.k===k)cls+=' bump';}
+    else{
+      const o=v.cache.get(k);
+      if(o){big=short(o.v);
+        if(o.q===-1||o.q<v.qi)cls+=' reused';
+        else{cls+=o.v===0?' waste':' cached';}
+        if(o.o)sub='#'+o.o;}
+      if(stackSet.has(k))cls+=' stack';
+      if(asks&&asks.has(k))cls+=' reads';
+      if(!done&&le){if(le.res==='hit'&&le.k===k)cls+=' hit';else if(le.t==='ret'&&le.k===k)cls+=' stored';}
+      if(k===top)cls+=' cur';
+    }
+    if(deps&&deps.has(k))cls+=' dep';
+    if(k===hoverKey)cls+=' hl';
+    const d=v.cells[k];
+    if(d.className!==cls)d.className=cls;
+    d.children[0].textContent=tag;d.children[1].textContent=big;d.children[2].textContent=sub;
+  }
+  v.q('chips').innerHTML=`<span>steps <b>${fmt(v.t)}</b> / ${fmt(R.ev.length)}</span><span>calls <b>${fmt(v.calls)}</b></span><span class="h">cache hits <b>${fmt(v.hits)}</b></span><span>worked out <b>${v.worked}</b></span><span class="w">dead ends <b>${v.dead}</b></span>${R.qs.length>1?`<span class="w">cache thrown away <b>${v.clears}</b>×</span>`:''}<span>stack <b>${v.stack.length}</b> (max ${v.depth})</span>`;
+  v.q('prog').style.width=(100*v.t/R.ev.length)+'%';
+  const bd=v.q('badge');
+  bd.textContent=done?(R.ev.length<total?'finished first ✓':'finished ✓'):(playing?'running':v.t?'paused':'ready');
+  bd.className='badge'+(done?' ok':'');
+  v.q('first').textContent=P.fn(A?tg:s);
+  v.q('meaning').textContent=MEANING[cur.kind][A?0:1];
+  v.q('qs').innerHTML=R.qs.length>1?R.qs.map(([a,b],i)=>{
+    const clr=R.ev.some(e=>e.t==='clear'&&e.q===i);
+    const c=i===v.qi&&!done?'now':i<v.answers.length?'done':'';
+    return `<span class="${c}${clr?' clr':''}" title="${clr?'cache thrown away before this question':''}">Q${i+1} ${P.label(a)}→${P.label(b)}${i<v.answers.length?' = '+v.answers[i]:''}${clr?' ✗':''}</span>`;
+  }).join(''):'';
+  v.q('narr').textContent=narrate(v);
+  // code
+  const M=cur.kind==='words'?MAP_W:MAP_STD;let on=[],kind='';const e=le;
+  if(done||!e){on=M.start;kind=done?'d':'';}
+  else if(e.t==='clear'){on=M.clear;kind='x';}
+  else if(e.t==='q'||e.t==='ans'){on=M.start;}
+  else if(e.t==='call'&&e.res==='wall'){on=M.wall;kind='w';}
+  else if(e.t==='call'&&e.res==='hit'){on=M.hit;kind='h';}
+  else if(e.t==='call'){on=e.base?M.missBase:M.miss;}
+  else{on=e.base?M.retBase:M.ret;kind='d';}
+  v.q('code').innerHTML=codeLines(v.dir).map((s,i)=>`<span class="ln${on.includes(i+1)?' on '+kind:''}" data-n="${i+1}">${s}</span>`).join('');
+  v.q('stack').innerHTML='call stack: '+(v.stack.length&&!done?v.stack.map(k=>`<span>${esc(P.fn(k).replace(/^\w+/,''))}</span>`).join(''):'empty');
+}
+function names(list){const n=list.map(P.fn);return n.length<=3?n.join(', '):n.slice(0,3).join(', ')+` and ${n.length-3} more`;}
+function narrate(v){
+  const R=v.R,done=v.t>=R.ev.length,e=v.last,A=v.dir==='A',K=cur.kind;
+  if(done){
+    let s=R.qs.length>1?`Done: answers ${R.answers.join(', ')}, using ${fmt(R.calls)} calls`:`Done: ${fmt(R.answers[0])}, using ${fmt(R.calls)} call${R.calls===1?'':'s'}`;
+    s+='.';
+    if(R.clears)s+=` It had to throw its cache away ${R.clears} time${R.clears===1?'':'s'}, because the ${A?'start':'goal'} kept changing.`;
+    if(R.cross)s+=` ${fmt(R.cross)} call${R.cross===1?' was':'s were'} answered by entries from earlier questions.`;
+    if(R.dead)s+=` ${R.dead} state${R.dead===1?' was a dead end':'s were dead ends'} worked out as 0 (${DEAD[K][A?0:1].replace('this cell','the cell').replace('this stone','the stone')}).`;
+    return s;
+  }
+  if(!e)return A?`It starts with the question at the end, ${P.fn(curQ(v)[1])}, and has to work back toward the start before it knows anything.`
+               :`It starts at the start, ${P.fn(curQ(v)[0])}, and has to work forward toward the end before it knows anything.`;
+  if(e.t==='q')return R.qs.length>1?`Question ${e.q+1} of ${R.qs.length}: from ${P.label(R.qs[e.q][0])} to ${P.label(R.qs[e.q][1])}.`:'Asking the question.';
+  if(e.t==='clear')return `New question, new ${A?'start':'goal'}. Every cached number was measured from the old ${A?'start':'goal'}, so all ${e.n} entries are useless and get thrown away.`;
+  if(e.t==='ans')return `Answer${R.qs.length>1?` to question ${e.q+1}`:''}: ${fmt(e.v)}.`;
+  const f=P.fn(e.k);
+  if(e.t==='call'){
+    if(e.res==='wall')return `${f} is ${P.blockedWord}: 0.`;
+    if(e.res==='hit')return `${f} is already cached: ${fmt(e.v)}.`+(e.pre?' That entry was stored by an earlier question.':' No work needed.');
+    if(e.base)return `${f} isn’t cached. It’s the base case.`;
+    if(!e.kids.length)return `${f} isn’t cached, and ${K==='words'?(A?'no dictionary word ends here':'no dictionary word starts here'):(A?'nothing leads into it':'nothing leads on from it')}.`;
+    return `${f} isn’t cached yet, so it asks ${names(e.kids)} (dashed) and adds up the answers.`;
+  }
+  if(e.base)return `${f} = 1, the base case.`+(e.o===1?` This is the first thing it can store. It had to dive all the way ${A?'back to the start':'forward to the end'} to get here.`:' Stored.');
+  if(!e.vals.length)return `${f} = 0, stored. A dead end: ${DEAD[K][A?0:1]}.`;
+  return `${f} = ${e.vals.map(fmt).join(' + ')} = ${fmt(e.v)}, stored.`+(e.v===0?` A dead end: ${DEAD[K][A?0:1]}.`:'');
+}
+
+function renderAll(){
+  vA.seek(t);vB.seek(t);render(vA);render(vB);
+  $('scrub').max=total;$('scrub').value=t;$('scrubl').textContent=`step ${fmt(t)} / ${fmt(total)}`;
+  $('play').textContent=playing?'❚❚ Pause':(t>=total?'↻ Replay':'▶ Play');
+  $('back').disabled=t===0;$('fwd').disabled=t>=total;$('end').disabled=t>=total;
+  $('hover').textContent=hoverText();
+}
+function hoverText(){
+  if(hoverKey<0)return 'Hover a state to compare what each side stored there. The states it depends on get a dashed outline.';
+  const k=hoverKey,lab=P.label(k);
+  if(P.blocked(k))return `${lab} is ${P.blockedWord}. Both sides treat it as 0.`;
+  const a=vA.cache.get(k),b=vB.cache.get(k);
+  const sa=a?`start-at-n−1 stored ${fmt(a.v)} (${MEANING[cur.kind][0]})`:'start-at-n−1 never needed it';
+  const sb=b?`start-at-0 stored ${fmt(b.v)} (${MEANING[cur.kind][1]})`:'start-at-0 never needed it';
+  let s=`${lab}: ${sa}; ${sb}.`;
+  if(a&&b&&cur.queries.length===1)s+=` Multiply them: ${fmt(a.v*b.v)} of the complete solutions pass through here.`;
+  return s;
+}
+function verdict(){
+  const a=RA.calls,b=RB.calls;let res;
+  if(a===b)res='<span style="color:var(--muted)">A tie: identical work</span>';
+  else if(a<b)res=`<span style="color:var(--a)">Start at n−1 wins: ${(b/a).toFixed(1)}× fewer calls</span>`;
+  else res=`<span style="color:var(--b)">Start at 0 wins: ${(a/b).toFixed(1)}× fewer calls</span>`;
+  $('verdict').innerHTML=`<div><div class="big" style="color:var(--a)">${fmt(a)}</div><div class="lbl">calls starting at n−1</div></div><div><div class="big" style="color:var(--b)">${fmt(b)}</div><div class="lbl">calls starting at 0</div></div><div class="res">${res}</div>`;
+}
+function renderCmp(){
+  const A=RA,B=RB,w=(a,b)=>a<b?['win-c','']:b<a?['','win-c']:['',''];
+  const row=(l,a,b,cls)=>`<tr><td>${l}</td><td class="${cls?cls[0]:''}">${a}</td><td class="${cls?cls[1]:''}">${b}</td></tr>`;
+  const [s,tg]=cur.queries[0];
+  $('cmp').innerHTML=
+    row('First call',esc(P.fn(tg)),esc(P.fn(s)))+
+    row('A cached number means',MEANING[cur.kind][0],MEANING[cur.kind][1])+
+    row('Calls',fmt(A.calls),fmt(B.calls),w(A.calls,B.calls))+
+    row('States worked out',fmt(A.worked),fmt(B.worked),w(A.worked,B.worked))+
+    row('…wasted on dead ends (0)',fmt(A.dead),fmt(B.dead),w(A.dead,B.dead))+
+    row('Cache hits',`${fmt(A.hits)}${A.cross?` (${A.cross} from earlier questions)`:''}`,`${fmt(B.hits)}${B.cross?` (${B.cross} from earlier questions)`:''}`)+
+    (A.qs.length>1?row('Cache thrown away',`${A.clears}×`,`${B.clears}×`,w(A.clears,B.clears)):'')+
+    row('Deepest call stack',fmt(A.maxD),fmt(B.maxD),w(A.maxD,B.maxD))+
+    row('Answer',A.answers.join(', '),B.answers.join(', '));
+  $('plain').textContent=`Without memoization, the same recursions would make ${plainCalls('A',P,cur.queries)} calls starting at n−1 and ${plainCalls('B',P,cur.queries)} starting at 0.`;
+}
+
+// ---------------- scoreboard ----------------
+const SCORE={};
+function scoreFor(c){const p=makeProblem(c);return [build('A',p,c.queries).calls,build('B',p,c.queries).calls];}
+function winTag(a,b){return a===b?'<span class="win T">tie</span>':a<b?'<span class="win A">n−1 wins</span>':'<span class="win B">0 wins</span>';}
+function renderScore(){
+  $('score').innerHTML=EX.map((ex,i)=>{const [a,b]=SCORE[ex.id];return `<tr data-i="${i}" class="${i===EXi?'cur':''}"><td>${ex.g}: ${ex.kind==='words'?'“'+(SCORE[ex.id].s||ex.name)+'”':ex.name}${SCORE[ex.id].edited?' <span class="note">(edited)</span>':''}</td><td class="${a<b?'win-c':''}">${fmt(a)}</td><td class="${b<a?'win-c':''}">${fmt(b)}</td><td>${winTag(a,b)}</td></tr>`;}).join('');
+  document.querySelectorAll('#score tr').forEach(tr=>tr.onclick=()=>pick(+tr.dataset.i));
+}
+function renderPicker(){
+  const groups=[...new Set(EX.map(e=>e.g))];
+  $('picker').innerHTML=groups.map(g=>`<div class="pg"><h3>${g}</h3>${EX.map((ex,i)=>ex.g!==g?'':`<button class="ex" data-i="${i}" aria-pressed="${i===EXi}"><span>${ex.kind==='words'?'“'+ex.name+'”':ex.name}</span>${winTag(...SCORE[ex.id])}</button>`).join('')}</div>`).join('');
+  document.querySelectorAll('.ex').forEach(b=>b.onclick=()=>pick(+b.dataset.i));
+}
+
+// ---------------- edit controls ----------------
+let gridMode='goal';
+function editMode(){
+  if(cur.kind==='grid')return cur.queries.length===1&&gridMode==='goal'?'click':'toggle';
+  if(cur.kind==='stones')return 'toggle';
+  return '';
+}
+function renderEdit(){
+  const r=$('editrow');
+  if(cur.kind==='grid'){
+    const single=cur.queries.length===1;
+    r.innerHTML=(single?`<span class="lbl-s">Clicking a cell</span><div class="grp"><button id="gm-goal" aria-pressed="${gridMode==='goal'}">Moves G there</button><button id="gm-wall" aria-pressed="${gridMode==='wall'}">Toggles a wall</button></div>`:`<span class="note" style="margin:0">Click a cell to toggle a wall.</span>`)+
+      `<button class="btn" id="shuffle">Random walls</button><button class="btn" id="resetex">Reset example</button>`;
+    if(single){$('gm-goal').onclick=()=>{gridMode='goal';renderEdit();mazeModes();};$('gm-wall').onclick=()=>{gridMode='wall';renderEdit();mazeModes();};}
+    $('shuffle').onclick=()=>{
+      const n=cur.n,lock=new Set(cur.queries.flat());
+      for(let r=0;r<n;r++)for(let c=0;c<n;c++)cur.walls[r][c]=!lock.has(r*n+c)&&Math.random()<0.22;
+      edited('Random walls.');
+    };
+  }else if(cur.kind==='stones'){
+    r.innerHTML=`<span class="note" style="margin:0">Click a stone to remove it or put it back.</span><button class="btn" id="resetex">Reset example</button>`;
+  }else{
+    r.innerHTML=`<label class="sl">string <input type="text" id="w-s" value="${esc(cur.s)}" maxlength="14" size="16"></label><label class="sl">words <input type="text" id="w-w" value="${esc(cur.words.join(', '))}" size="20"></label><button class="btn" id="resetex">Reset example</button>`;
+    let tm=0;const upd=()=>{clearTimeout(tm);tm=setTimeout(()=>{
+      const s=$('w-s').value.toLowerCase().replace(/[^a-z]/g,'').slice(0,14);
+      const w=[...new Set($('w-w').value.toLowerCase().split(/[\s,]+/).map(x=>x.replace(/[^a-z]/g,'')).filter(Boolean))].slice(0,8);
+      if(!s.length||!w.length)return;
+      cur.s=s;cur.words=w;cur.queries=[[0,s.length]];P=makeProblem(cur);vA.grid();vB.grid();edited('');
+    },250);};
+    $('w-s').oninput=upd;$('w-w').oninput=upd;
+  }
+  $('resetex').onclick=()=>pick(EXi);
+}
+function mazeModes(){[vA,vB].forEach(v=>{v.maze.classList.remove('click','toggle');const m=editMode();if(m)v.maze.classList.add(m);});}
+function edited(msg){cur.edited=true;$('notice').textContent=msg?msg+' Both caches start empty.':'';setup();}
+
+// ---------------- setup ----------------
+function setup(preA,preB){
+  pause();t=0;
+  RA=build('A',P,cur.queries,preA);RB=build('B',P,cur.queries,preB);
+  total=Math.max(RA.ev.length,RB.ev.length);
+  vA.reset(RA);vB.reset(RB);
+  if(!preA){SCORE[cur.id]=[RA.calls,RB.calls];SCORE[cur.id].edited=cur.edited;if(cur.kind==='words')SCORE[cur.id].s=cur.s;renderScore();renderPicker();}
+  verdict();renderCmp();renderAll();
+}
+function pick(i){
+  EXi=i;const ex=EX[i];cur=loadConfig(ex);P=makeProblem(cur);
+  $('blurb').textContent=ex.blurb;$('notice').textContent='';
+  if(cur.kind==='grid')gridMode='goal';
+  vA.grid();vB.grid();renderEdit();setup();
+}
+function moveGoal(k){
+  const [s,old]=cur.queries[0];if(k===old||k===s)return;
+  const preA={cache:new Map(vA.cache),base:s},preB={cache:new Map(vB.cache),base:old};
+  cur.queries=[[s,k]];
+  $('notice').textContent=`G moved to ${P.label(k)}. Start-at-n−1 keeps its ${preA.cache.size} cached entries, because they count routes from S and S hasn’t moved. Start-at-0 must throw its ${preB.cache.size} away, because they counted routes to the old G.`;
+  setup(preA,preB);play();
+}
+
+// ---------------- playback ----------------
+function rate(){return 2*Math.pow(1.8,+$('spd').value-1);}
+function loop(now){
+  if(!playing)return;
+  const dt=Math.min(100,now-last)/1000;last=now;acc+=dt*rate();
+  const n=Math.floor(acc);
+  if(n>0){acc-=n;t=Math.min(total,t+n);if(t>=total)playing=false;renderAll();if(!playing)return;}
+  raf=requestAnimationFrame(loop);
+}
+function pause(){playing=false;cancelAnimationFrame(raf);}
+function play(){
+  if(playing){pause();renderAll();return;}
+  if(t>=total)t=0;
+  playing=true;last=performance.now();acc=0;raf=requestAnimationFrame(loop);renderAll();
+}
+function seekTo(x){pause();t=Math.max(0,Math.min(total,x));renderAll();}
+
+// ---------------- input ----------------
+[vA,vB].forEach(v=>{
+  v.maze.addEventListener('click',e=>{
+    const c=e.target.closest('.cell');if(!c)return;const k=+c.dataset.k,m=editMode();
+    const locked=new Set(cur.queries.flat());
+    if(m==='click'){if(!P.blocked(k))moveGoal(k);}
+    else if(m==='toggle'){
+      if(locked.has(k))return;
+      if(cur.kind==='grid'){const n=cur.n;cur.walls[Math.floor(k/n)][k%n]=!cur.walls[Math.floor(k/n)][k%n];edited('Walls changed.');}
+      else{cur.missing.has(k)?cur.missing.delete(k):cur.missing.add(k);edited('Stones changed.');}
+    }
+  });
+  v.maze.addEventListener('mouseover',e=>{const c=e.target.closest('.cell');if(!c)return;const k=+c.dataset.k;if(k!==hoverKey){hoverKey=k;renderAll();}});
+  v.maze.addEventListener('mouseleave',()=>{hoverKey=-1;renderAll();});
+});
+$('play').onclick=play;
+$('fwd').onclick=()=>seekTo(t+1);
+$('back').onclick=()=>seekTo(t-1);
+$('end').onclick=()=>seekTo(total);
+$('scrub').oninput=function(){seekTo(+this.value);};
+document.addEventListener('keydown',e=>{
+  if(e.target&&(e.target.tagName==='INPUT'||(e.target.tagName==='BUTTON'&&e.key===' ')))return;
+  if(e.key==='ArrowRight'){seekTo(t+1);e.preventDefault();}
+  else if(e.key==='ArrowLeft'){seekTo(t-1);e.preventDefault();}
+  else if(e.key===' '){play();e.preventDefault();}
+});
+
+EX.forEach(ex=>{const c=loadConfig(ex);SCORE[ex.id]=scoreFor(c);});
+pick(0);
+})();
+</script>
+</body>
+</html>
